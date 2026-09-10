@@ -1,4 +1,6 @@
 $(document).ready(function () {
+    Store.seed();
+
     $('#loginForm').on('submit', function (e) {
         e.preventDefault();
         const form = $(this);
@@ -6,35 +8,18 @@ $(document).ready(function () {
         form.find('.is-invalid').removeClass('is-invalid');
         $('#loginAlert').addClass('d-none').text('');
 
-        const payload = {
-            login:    form.find('#username').val().trim(),
-            password: form.find('#password').val()
-        };
+        const login    = form.find('#username').val().trim();
+        const password = form.find('#password').val();
 
-        $.ajax({
-            url: 'api/auth.php?action=login',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(payload),
-            dataType: 'json'
-        })
-        .done(function (res) {
-            if (res.success && res.redirect) {
-                window.location.href = res.redirect;
-            }
-        })
-        .fail(function (xhr) {
-            const res = xhr.responseJSON || {};
-            if (xhr.status === 422 && res.errors) {
-                $.each(res.errors, function (field, message) {
-                    const map = { login: '#username', password: '#password' };
-                    const $input = form.find(map[field] || ('[name="' + field + '"]'));
-                    $input.addClass('is-invalid');
-                    $input.siblings('.invalid-feedback').text(message);
-                });
-            } else {
-                $('#loginAlert').removeClass('d-none').text(res.error || 'Ошибка входа');
-            }
-        });
+        if (!login)    { form.find('#username').addClass('is-invalid'); return; }
+        if (!password) { form.find('#password').addClass('is-invalid'); return; }
+
+        const session = Store.login(login, password);
+        if (!session) {
+            $('#loginAlert').removeClass('d-none').text('Неверный логин или пароль');
+            return;
+        }
+
+        window.location.href = session.role === 'admin' ? 'admin.html' : 'index.html';
     });
 });
