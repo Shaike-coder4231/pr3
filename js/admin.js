@@ -1,4 +1,12 @@
 $(document).ready(function () {
+    Store.seed();
+
+    // Пускаем только админа
+    if (!Store.isAdmin()) {
+        window.location.href = 'login.html';
+        return;
+    }
+
     const container = $('#bookingsContainer');
     const empty     = $('#bookingsEmpty');
     const alertBox  = $('#bookingsAlert');
@@ -39,73 +47,45 @@ $(document).ready(function () {
     }
 
     function loadBookings() {
-        $.getJSON('api/bookings.php')
-            .done(function (res) {
-                const items = res.bookings || [];
-                container.empty();
+        const items = Store.getBookings('pending');
+        container.empty();
 
-                if (!items.length) {
-                    empty.removeClass('d-none');
-                    return;
-                }
-                empty.addClass('d-none');
-                items.forEach(b => container.append(renderBooking(b)));
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) {
-                    window.location.href = 'login.php';
-                    return;
-                }
-                showAlert('danger', 'Не удалось загрузить заявки');
-            });
+        if (!items.length) {
+            empty.removeClass('d-none');
+            return;
+        }
+        empty.addClass('d-none');
+        items.forEach(b => container.append(renderBooking(b)));
     }
 
-    // Делегирование кликов по кнопкам "Одобрить" / "Удалить"
     container.on('click', 'button[data-action]', function () {
         const $card  = $(this).closest('.card');
         const id     = $card.data('id');
         const action = $(this).data('action');
 
         if (action === 'approve') {
-            $.ajax({
-                url: 'api/bookings.php?id=' + id,
-                type: 'PUT',
-                contentType: 'application/json',
-                data: JSON.stringify({ status: 'approved' }),
-                dataType: 'json'
-            })
-            .done(function () {
-                $card.fadeOut(200, function () { $(this).remove(); checkEmpty(); });
-                showAlert('success', 'Заявка одобрена');
-            })
-            .fail(function (xhr) {
-                const res = xhr.responseJSON || {};
-                if (xhr.status === 401) { window.location.href = 'login.php'; return; }
-                showAlert('danger', res.error || 'Ошибка одобрения');
-            });
+            Store.updateBookingStatus(id, 'approved');
+            $card.fadeOut(200, function () { $(this).remove(); checkEmpty(); });
+            showAlert('success', 'Заявка одобрена');
         }
 
         if (action === 'delete') {
-            $.ajax({
-                url: 'api/bookings.php?id=' + id,
-                type: 'DELETE',
-                dataType: 'json'
-            })
-            .done(function () {
-                $card.fadeOut(200, function () { $(this).remove(); checkEmpty(); });
-                showAlert('success', 'Заявка удалена');
-            })
-            .fail(function (xhr) {
-                const res = xhr.responseJSON || {};
-                if (xhr.status === 401) { window.location.href = 'login.php'; return; }
-                showAlert('danger', res.error || 'Ошибка удаления');
-            });
+            Store.deleteBooking(id);
+            $card.fadeOut(200, function () { $(this).remove(); checkEmpty(); });
+            showAlert('success', 'Заявка удалена');
         }
     });
 
     function checkEmpty() {
         if (container.children('.card').length === 0) empty.removeClass('d-none');
     }
+
+    // Кнопка «Выход»
+    $(document).on('click', '#logoutLink', function (e) {
+        e.preventDefault();
+        Store.logout();
+        window.location.href = 'index.html';
+    });
 
     loadBookings();
 });
